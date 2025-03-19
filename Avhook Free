@@ -1,4 +1,4 @@
-getgenv().keytoclick = "q"
+getgenv().keytoclick = "c"
 tool = Instance.new("Tool")
 tool.RequiresHandle = false
 tool.Name = keytoclick
@@ -149,7 +149,7 @@ testSection:AddTextbox(
 
 getgenv().RecurringPoint = "UpperTorso"
 getgenv().Hitbox = "UpperTorso"
-getgenv().Keybind = "q"
+getgenv().Keybind = "c"
 getgenv().AimbotStrengthAmount = 0.405
 getgenv().PredictionAmount = 10
 getgenv().Radius = 50
@@ -171,7 +171,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/tenaaki/GenericAimbot
 local Settings = {
     rewrittenmain = {
         Enabled = true,
-        Key = "q",
+        Key = "c",
         DOT = true,
         AIRSHOT = true,
         NOTIF = true, 
