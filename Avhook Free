@@ -1,4 +1,4 @@
-getgenv().keytoclick = "C"
+getgenv().keytoclick = "q"
 tool = Instance.new("Tool")
 tool.RequiresHandle = false
 tool.Name = keytoclick
@@ -9,8 +9,8 @@ end)
 tool.Parent = game.Players.LocalPlayer.Backpack
 
 game.StarterGui:SetCore("SendNotification", {
-    Title = "skibidi gyat";
-    Text = "Start looksmaxxing";
+    Title = "Mishika.WTF";
+    Text = "Sealed.WTF";
 
 })
 
