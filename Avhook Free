@@ -1,0 +1,310 @@
+-- Services
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+
+-- Variables
+local GUI = Instance.new("ScreenGui")
+local KeyFrame = Instance.new("Frame")
+local EnterKeyBox = Instance.new("TextBox")
+local CheckKeyButton = Instance.new("TextButton")
+local GetKeyButton = Instance.new("TextButton")
+local CloseButton = Instance.new("TextButton")
+local LockButton = Instance.new("TextButton") -- Lock Button
+local espCheckbox = Instance.new("TextButton") -- ESP Checkbox
+local UICorner = Instance.new("UICorner")
+local savedKey = "" -- Variable to store the generated key
+local espEnabled = false -- Flag to check if ESP is enabled
+local aimbotEnabled = false -- Flag to control aimbot status
+local targetPlayer -- Variable for the character to lock on
+local isLockedOn = false -- Flag to check if currently locked on a target
+local closestPlayer = nil -- Variable to store the closest player
+
+-- Function to generate a random key
+local function generateKey()
+    local newKey = "AV-FREE" .. tostring(math.random(100000, 999999))
+    savedKey = newKey -- Save the generated key for comparison
+    return newKey
+end
+
+-- Function to display notifications
+local function displayNotification(title, text, duration)
+    StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = duration
+    })
+end
+
+-- Function to copy text to the clipboard
+local function setClipboard(text)
+    if setclipboard then
+        setclipboard(text)
+        displayNotification("Key Copied", "The key has been copied to your clipboard: " .. text, 5)
+    else
+        displayNotification("Clipboard Unsupported", "Key generated: " .. text .. "\n(Unable to copy automatically.)", 5)
+    end
+end
+
+-- Function to create the lunar-themed GUI
+local function createLunarThemeGUI()
+    local lunarGUI = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+    local lunarFrame = Instance.new("Frame", lunarGUI)
+
+    lunarFrame.Size = UDim2.new(0.25, 0, 0.4, 0) -- Smaller size
+    lunarFrame.Position = UDim2.new(0.375, 0, 0.3, 0) -- Centered position
+    lunarFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 50) -- Moonlight color
+    lunarFrame.BackgroundTransparency = 0.8 -- Set transparency to 0.8
+    lunarFrame.Active = true
+    lunarFrame.Draggable = true
+    UICorner.CornerRadius = UDim.new(0.1, 0)
+    UICorner.Parent = lunarFrame
+
+    -- Create Close Button
+    CloseButton.Size = UDim2.new(0.15, 0, 0.1, 0)
+    CloseButton.Position = UDim2.new(1, -35, -0.1, 15)
+    CloseButton.Text = "X"
+    CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.Parent = lunarFrame
+
+    -- Create ESP Checkbox
+    espCheckbox.Size = UDim2.new(0.1, 0, 0.1, 0)
+    espCheckbox.Position = UDim2.new(0.05, 0, 0.25, 0)
+    espCheckbox.Text = "ESP ❌"
+    espCheckbox.BackgroundColor3 = Color3.fromRGB(50, 50, 100)
+    espCheckbox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    espCheckbox.Parent = lunarFrame
+
+    -- Create Lock Button
+    LockButton.Size = UDim2.new(0.1, 0, 0.1, 0)
+    LockButton.Position = UDim2.new(0.05, 0, 0.45, 0)
+    LockButton.Text = "Lock"
+    LockButton.BackgroundColor3 = Color3.fromRGB(50, 100, 50)
+    LockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    LockButton.Parent = lunarFrame
+
+    -- Event listeners
+    espCheckbox.MouseButton1Click:Connect(function()
+        espEnabled = not espEnabled -- Toggle ESP
+        espCheckbox.Text = "ESP " .. (espEnabled and "✔" or "❌") -- Change checkbox visual
+        
+        if espEnabled then
+            -- Activate ESP for all players
+            for _, target in pairs(Players:GetPlayers()) do
+                if target ~= player and target.Character then
+                    local highlight = Instance.new("Highlight")
+                    highlight.Parent = target.Character
+                    highlight.Adornee = target.Character
+                    
+                    -- Set color based on visibility (initially set to red)
+                    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                    highlight.FillTransparency = 0.5 -- Semi-transparent
+
+                    -- Update ESP color based on visibility
+                    RunService.RenderStepped:Connect(function()
+                        local screenPosition, onScreen = workspace.CurrentCamera:WorldToScreenPoint(target.Character.HumanoidRootPart.Position)
+                        if onScreen then
+                            highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Green for visible
+                        else
+                            highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Red for not visible
+                        end
+                    end)
+                end
+            end
+        else
+            -- Remove ESP highlights if deactivated
+            for _, target in pairs(Players:GetPlayers()) do
+                if target ~= player and target.Character then
+                    local highlight = target.Character:FindFirstChildOfClass("Highlight")
+                    if highlight then
+                        highlight:Destroy() -- Remove it
+                    end
+                end
+            end
+        end
+    end)
+
+    CloseButton.MouseButton1Click:Connect(function()
+        lunarGUI:Destroy() -- Close GUI
+    end)
+
+    LockButton.MouseButton1Click:Connect(function()
+        aimbotEnabled = not aimbotEnabled -- Toggle Aimbot
+        LockButton.BackgroundColor3 = aimbotEnabled and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(50, 100, 50) -- Change button color
+        displayNotification("Aimbot Status", aimbotEnabled and "Aimbot is ON" or "Aimbot is OFF", 3)
+    end)
+
+    -- Aimbot Logic (activated automatically)
+    RunService.RenderStepped:Connect(function()
+        if aimbotEnabled then
+            closestPlayer = nil
+            local closestDistance = math.huge
+
+            for _, target in pairs(Players:GetPlayers()) do
+                if target ~= player and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                    local humanoidRootPart = target.Character.HumanoidRootPart
+                    local screenPosition, onScreen = workspace.CurrentCamera:WorldToScreenPoint(humanoidRootPart.Position)
+
+                    -- Only lock on if the target is on the screen
+                    if onScreen then
+                        local distance = (humanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                        if distance < closestDistance then
+                            closestDistance = distance
+                            closestPlayer = target
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    -- Listen for Q key presses
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if input.KeyCode == Enum.KeyCode.Q and not gameProcessed and aimbotEnabled then
+            if closestPlayer then
+                if isLockedOn then
+                    -- Unlock from target
+                    isLockedOn = false
+                    displayNotification("Aimbot Status", "Unlocked from target!", 3)
+                else
+                    -- Lock onto the closest player
+                    isLockedOn = true
+                    displayNotification("Aimbot Status", "Locked onto " .. closestPlayer.Name, 3)
+                    local camera = workspace.CurrentCamera
+                    camera.CFrame = CFrame.lookAt(camera.Position, closestPlayer.Character.HumanoidRootPart.Position)
+                end
+            end
+        end
+    end)
+end
+
+-- Function to toggle the visibility of the key system GUI
+local function toggleKeySystemGUI(open)
+    KeyFrame.Visible = open
+end
+
+-- Main GUI setup (Key System)
+GUI.Name = "KeySystemGUI"
+GUI.Parent = player:WaitForChild("PlayerGui")
+GUI.ResetOnSpawn = false
+
+-- Configure KeyFrame
+KeyFrame.Parent = GUI
+KeyFrame.Size = UDim2.new(0.25, 0, 0.4, 0) -- Smaller size
+KeyFrame.Position = UDim2.new(0.375, 0, 0.3, 0) -- Centered position
+KeyFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 50) -- Moonlight color
+KeyFrame.BackgroundTransparency = 0.8 -- Set transparency to 0.8
+KeyFrame.BorderSizePixel = 0
+KeyFrame.Active = true
+KeyFrame.Draggable = true
+
+-- Add UICorner to KeyFrame
+UICorner.CornerRadius = UDim.new(0.1, 0)
+UICorner.Parent = KeyFrame
+
+-- Configure EnterKeyBox
+EnterKeyBox.Parent = KeyFrame
+EnterKeyBox.Size = UDim2.new(0.8, 0, 0.2, 0)
+EnterKeyBox.Position = UDim2.new(0.1, 0, 0.1, 0)
+EnterKeyBox.PlaceholderText = "Enter Key"
+EnterKeyBox.Font = Enum.Font.LuckiestGuy
+EnterKeyBox.TextSize = 14
+EnterKeyBox.BackgroundColor3 = Color3.fromRGB(50, 50, 100)
+EnterKeyBox.BorderSizePixel = 0
+EnterKeyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+-- Add UICorner to EnterKeyBox
+local EnterKeyCorner = UICorner:Clone()
+EnterKeyCorner.Parent = EnterKeyBox
+
+-- Configure CheckKeyButton
+CheckKeyButton.Parent = KeyFrame
+CheckKeyButton.Size = UDim2.new(0.8, 0, 0.2, 0)
+CheckKeyButton.Position = UDim2.new(0.1, 0, 0.4, 0)
+CheckKeyButton.Text = "Check Key"
+CheckKeyButton.Font = Enum.Font.LuckiestGuy
+CheckKeyButton.TextSize = 14
+CheckKeyButton.BackgroundColor3 = Color3.fromRGB(50, 50, 100)
+CheckKeyButton.BorderSizePixel = 0
+CheckKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+-- Add UICorner to CheckKeyButton
+local CheckKeyCorner = UICorner:Clone()
+CheckKeyCorner.Parent = CheckKeyButton
+
+-- Configure GetKeyButton
+GetKeyButton.Parent = KeyFrame
+GetKeyButton.Size = UDim2.new(0.8, 0, 0.2, 0)
+GetKeyButton.Position = UDim2.new(0.1, 0, 0.7, 0)
+GetKeyButton.Text = "Get Key"
+GetKeyButton.Font = Enum.Font.LuckiestGuy
+GetKeyButton.TextSize = 14
+GetKeyButton.BackgroundColor3 = Color3.fromRGB(50, 50, 100)
+GetKeyButton.BorderSizePixel = 0
+GetKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+-- Add UICorner to GetKeyButton
+local GetKeyCorner = UICorner:Clone()
+GetKeyCorner.Parent = GetKeyButton
+
+-- Add the ESP checkbox to the main GUI
+espCheckbox.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled -- Toggle ESP on checkbox click
+    espCheckbox.Text = "ESP " .. (espEnabled and "✔" or "❌")
+end)
+
+-- Configure CloseButton
+CloseButton.Parent = KeyFrame
+CloseButton.Size = UDim2.new(0.2, 0, 0.1, 0)
+CloseButton.Position = UDim2.new(0.9, -25, -0.2, 25)
+CloseButton.Text = "X"
+CloseButton.Font = Enum.Font.LuckiestGuy
+CloseButton.TextSize = 16
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+CloseButton.BorderSizePixel = 0
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+-- Add UICorner to CloseButton
+local CloseButtonCorner = UICorner:Clone()
+CloseButtonCorner.Parent = CloseButton
+
+-- Toggle KeySystem GUI on button presses
+CheckKeyButton.MouseButton1Click:Connect(function()
+    local keyEntered = EnterKeyBox.Text -- Get the entered key
+    if keyEntered == savedKey then
+        displayNotification("Loading...", "Please wait while we verify the key.", 3)
+
+        -- Wait for 3 seconds before showing the next notification
+        task.delay(3, function()
+            displayNotification("Loaded!", "Key verification successful!", 5)
+
+            -- Create new lunar-themed GUI
+            createLunarThemeGUI()
+
+            -- Destroy the KeySystem GUI
+            GUI:Destroy()
+            
+            -- Create Avhook.wtf GUI
+            createAvhookGUI()
+        end)
+    else
+        displayNotification("Invalid Key", "The entered key is incorrect. Please try again.", 5)
+    end
+end)
+
+-- Main Functionality of GetKeyButton
+GetKeyButton.MouseButton1Click:Connect(function()
+    local newKey = generateKey()  -- Generate a new random key
+    setClipboard(newKey)          -- Copy it to clipboard
+    displayNotification("Key Generated", "The new key has been copied to your clipboard: " .. newKey, 5)
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+    GUI:Destroy()
+end)
+
+-- Initialize main GUI setup
+toggleKeySystemGUI(true)
